@@ -6,7 +6,7 @@
 
 inline Result astar(const VWMap& m, const VWState& initial, size_t expansion_cost_us, size_t threads, size_t board_k, Stats& stats){
     // open set
-    priority_queue<Node*, vector<Node*>, greater<Node*>> open;
+    priority_queue<Node*, vector<Node*>, NodePtrCmp> open;
     auto best_g = unordered_map<VWState, int>();
 
     Node* initial_node = new Node(0, initial);

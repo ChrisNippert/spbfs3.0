@@ -31,6 +31,13 @@ struct Node{
     }
 };
 
+struct NodePtrCmp {
+    bool operator()(const Node* a, const Node* b) const {
+        int fa = a->f(), fb = b->f();
+        return fa > fb || (fa == fb && a->g < b->g);
+    }
+};
+
 inline void spin_for(std::chrono::nanoseconds d) {
     auto end = std::chrono::steady_clock::now() + d;
     while (std::chrono::steady_clock::now() < end) {}
