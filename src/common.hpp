@@ -31,17 +31,19 @@ struct Node{
     }
 };
 
-inline void generate_successors(const VWMap& m, Node& n) {
+inline void spin_for(std::chrono::nanoseconds d) {
+    auto end = std::chrono::steady_clock::now() + d;
+    while (std::chrono::steady_clock::now() < end) {}
+}
+
+inline void generate_successors(const VWMap& m, Node& n, size_t expansion_cost_us) {
+    spin_for(std::chrono::microseconds(expansion_cost_us));
     auto successors = n.state.generate_successors(m);
     for(auto& s : successors) {
         n.children.push_back(Node(n.g+1, s));
     }
 }
 
-inline void spin_for(std::chrono::nanoseconds d) {
-    auto end = std::chrono::steady_clock::now() + d;
-    while (std::chrono::steady_clock::now() < end) { /* burn */ }
-}
 
 struct Stats {
     size_t expanded = 0, generated = 0;

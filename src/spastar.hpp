@@ -151,13 +151,12 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
                 // cerr << "Publishing " << s_node << " to board\n";
                 
                 board[board_pos] = s_node;
-                board_pos = ++board_pos&board_k;
+                board_pos = ++board_pos % board_k;
             }
         }
-        // set board to the approx top k of the heap
-        // size_t n = min<size_t>(board_k, open.size());
-        // copy(open.begin(), open.begin() + n, board.begin());
-        // fill(board.begin() + n, board.end(), nullptr);   // clear leftover slots
+        // for (size_t i = 0; i < n; i++)
+        //     if (board[i].load(std::memory_order_relaxed) != open[i])
+        //         board[i].store(open[i], std::memory_order_release);
     }
     return nullopt;
 }
