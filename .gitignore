@@ -1,3 +1,7 @@
+.vscode/
+bin/
+results/
+
 *.out
 *.gch
 *.pch

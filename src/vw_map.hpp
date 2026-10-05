@@ -147,8 +147,10 @@ inline Problem parse_map(){
 
     if (getline(cin, input_str)) 
         cols = stoi(input_str);
+    else exit(1);
     if (getline(cin, input_str)) 
         rows = stoi(input_str);
+    else exit(2);
 
     unordered_set<Position> walls;
     unordered_set<Position> trash;

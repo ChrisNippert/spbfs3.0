@@ -3,10 +3,18 @@
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
+#include <chrono>
+#include <iomanip> // Required for std::setprecision
 
 #include "vw_map.hpp"
+#include "timer.hpp"
 
 using namespace std;
+
+inline void spin_for(std::chrono::nanoseconds d) {
+    auto end = std::chrono::steady_clock::now() + d;
+    while (std::chrono::steady_clock::now() < end) { /* burn */ }
+}
 
 struct Node{
     int g, h;
@@ -49,6 +57,10 @@ vector<VWState> get_result(unordered_map<VWState, VWState> map, VWState initial,
     return states;
 }
 
+size_t nodes_generated = 0;
+size_t nodes_expanded = 0;
+size_t expansion_cost_us = 0;
+
 optional<vector<VWState>> astar(VWMap m, VWState initial){
     // open set
     priority_queue<Node, vector<Node>, greater<Node>> open;
@@ -56,36 +68,42 @@ optional<vector<VWState>> astar(VWMap m, VWState initial){
     auto best_g = unordered_map<VWState, int>();
 
     Node initial_node = Node(0, initial);
+    best_g[initial] = 0;
     
-    cerr << "Pushing initial node " << initial_node.state << "\n";
+    // cerr << "Pushing initial node " << initial_node.state << "\n";
     open.push(initial_node);
 
     while(!open.empty()){
-        cerr << "Popping from open\n";
+        // cerr << "Popping from open\n";
         Node current = open.top();
         open.pop();
 
-        if(current.state.trash_positions.empty()) {
-            cerr << "Success! Calculating solution";
-            return get_result(from, initial_node.state, current.state);
-        }
-
         if (best_g[current.state] < current.g) {
             // skip because another node had a better g with the same state.
-            cerr << "Skipped since I hit a node with a better g value\n";
+            // cerr << "Skipped since I hit a node with a better g value\n";
             continue;
         }
 
-        // get neighbors
-        generate_successors(m, current);
-        for(auto s : current.children) {
+        nodes_expanded ++;
 
-            auto [it, succ] = from.insert({s.state, current.state}); // get old value in lookup map
+        if(current.state.trash_positions.empty()) {
+            // cerr << "Success! Calculating solution";
+            return get_result(from, initial_node.state, current.state);
+        }
+
+
+        // get neighbors
+        
+        generate_successors(m, current);
+        spin_for(std::chrono::microseconds(expansion_cost_us));
+        for(const auto& s : current.children) {
+
             auto bg = best_g.find(s.state);
+            nodes_generated++;
             if (bg == best_g.end() || s.g < bg->second) {
                 best_g[s.state] = s.g;
                 from.insert_or_assign(s.state, current.state);  // update the table's g
-                cerr << "Pushing child " << s.state << " to open list\n";
+                // cerr << "Pushing child " << s.state << " to open list\n";
                 open.push(s);
             }
         }
@@ -95,14 +113,29 @@ optional<vector<VWState>> astar(VWMap m, VWState initial){
 
 
 
-int main(int argc, char const *argv[])
+int main(int argc, char* argv[])
 {
+
+    if(argc != 1) {
+        expansion_cost_us = stoi(argv[1]);
+    }
+    cerr << "Additional expansion cost set to " << expansion_cost_us << "\n";
+
     auto [m, s] = parse_map();
+    Timer t;
     auto res = astar(m, s);
+    auto us = t.get_us();
     if(res){
-        cout << res.value() << '\n';
+        // cout << res.value() << '\n';
+        // cout << "Path Length: " << res.value().size()-1 << "\n";
+        // cout << nodes_generated << " nodes generated\n";
+        // cout << nodes_expanded << " nodes expanded\n";
+        // cout << nodes_expanded/us * 1000 << " expansions/ms\n";
+        // cout << (nodes_expanded/us * 1000000) << " expansions/s\n";
+        cout << expansion_cost_us << "," << (long)us << "," << nodes_expanded << "\n";
     } else {
         cout << "Failed to find a solution\n";
     }
     return 0;
 }
+
