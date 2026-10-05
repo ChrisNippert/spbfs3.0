@@ -5,3 +5,5 @@ results/
 *.out
 *.gch
 *.pch
+
+perf*
