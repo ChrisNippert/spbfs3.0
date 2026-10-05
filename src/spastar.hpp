@@ -10,7 +10,7 @@
 
 enum Spec : uint8_t { IDLE, BUSY, DONE };
 
-struct SNode{
+struct alignas(64) SNode{
     int g, h;
     VWState state;
     std::atomic<uint8_t> spec{IDLE};
@@ -75,10 +75,7 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
     open.push_back(initial_node);
     push_heap(open.begin(), open.end(), NodeCmp{});
 
-
-    size_t board_pos = 0;
-    board[board_pos] = initial_node;
-    board_pos = ++board_pos&board_k;
+    board[0] = initial_node;
     // spawn threads:
 
     vector<jthread> workers;
@@ -148,15 +145,15 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
                 push_heap(open.begin(), open.end(), NodeCmp{});
 
                 s_node->parent = current;
-                // cerr << "Publishing " << s_node << " to board\n";
-                
-                board[board_pos] = s_node;
-                board_pos = ++board_pos % board_k;
             }
         }
-        // for (size_t i = 0; i < n; i++)
-        //     if (board[i].load(std::memory_order_relaxed) != open[i])
-        //         board[i].store(open[i], std::memory_order_release);
+        // Smart update the board for things that are changed
+        size_t n = std::min<size_t>(board_k, open.size());
+        for (size_t i = 0; i < board_k; i++) {
+            SNode* want = i < n ? open[i] : nullptr;
+            if (board[i].load(std::memory_order_relaxed) != want)
+                board[i].store(want, std::memory_order_release);
+        }
     }
     return nullopt;
 }

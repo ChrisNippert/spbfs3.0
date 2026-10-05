@@ -55,7 +55,7 @@ inline void generate_successors(const VWMap& m, Node& n, size_t expansion_cost_u
 struct Stats {
     size_t expanded = 0, generated = 0;
     size_t hits = 0, waits = 0, misses = 0;   // spastar only
-    atomic<size_t> speculations = 0, empty_scans = 0;
+    alignas(64) atomic<size_t> speculations = 0, empty_scans = 0;
 };
 using Result = std::optional<std::vector<VWState>>;
 
