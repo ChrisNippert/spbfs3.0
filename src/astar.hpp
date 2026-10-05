@@ -8,8 +8,9 @@ inline Result astar(const VWMap& m, const VWState& initial, size_t expansion_cos
     // open set
     priority_queue<Node*, vector<Node*>, NodePtrCmp> open;
     auto best_g = unordered_map<VWState, int>();
+    best_g.reserve(1 << 20);
 
-    Node* initial_node = new Node(0, initial);
+    Node* initial_node = new Node(0, initial, m);
     best_g[initial] = 0;
     
     open.push(initial_node);
@@ -21,7 +22,7 @@ inline Result astar(const VWMap& m, const VWState& initial, size_t expansion_cos
 
         stats.expanded ++;
 
-        if(current->state.trash_positions.empty()) 
+        if(current->state.is_goal()) 
             return get_result(initial_node->state, current);
 
         generate_successors(m, *current, expansion_cost_us);

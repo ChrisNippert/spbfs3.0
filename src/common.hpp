@@ -13,7 +13,7 @@ struct Node{
     vector<Node> children;
     Node* parent;
 
-    Node(int g, VWState s) : g(g), h(s.get_nearest_l2_norm()), state(s) {}
+    Node(int g, VWState s, const VWMap& m) : g(g), h(s.get_nearest_l2_norm(m)), state(s) {}
 
     bool operator<(const Node& other) const {
         return f() < other.f();
@@ -44,10 +44,11 @@ inline void spin_for(std::chrono::nanoseconds d) {
 }
 
 inline void generate_successors(const VWMap& m, Node& n, size_t expansion_cost_us) {
-    spin_for(std::chrono::microseconds(expansion_cost_us));
+    if (expansion_cost_us) // only deal with spinning mechanics if theres a cost
+        spin_for(std::chrono::microseconds(expansion_cost_us));
     auto successors = n.state.generate_successors(m);
     for(auto& s : successors) {
-        n.children.push_back(Node(n.g+1, s));
+        n.children.push_back(Node(n.g+1, s, m));
     }
 }
 

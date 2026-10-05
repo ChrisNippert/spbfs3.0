@@ -17,7 +17,7 @@ struct alignas(64) SNode{
     SNode* parent;
     vector<VWState> children; // not storing nodes since atomics can't copy
 
-    SNode(int g, VWState s) : g(g), h(s.get_nearest_l2_norm()), state(s) {}
+    SNode(int g, VWState s, const VWMap& m) : g(g), h(s.get_nearest_l2_norm(m)), state(s) {}
 
     bool operator<(const SNode& other) const {
         return f() < other.f();
@@ -44,7 +44,8 @@ struct NodeCmp {
 
 inline void s_generate_successors(const VWMap& m, SNode* n, size_t expansion_cost_us) {
     auto successors = n->state.generate_successors(m);
-    spin_for(std::chrono::microseconds(expansion_cost_us));
+    if(expansion_cost_us)
+        spin_for(std::chrono::microseconds(expansion_cost_us));
     for(auto& s : successors) {
         n->children.push_back(s);
     }
@@ -64,11 +65,12 @@ inline vector<VWState> s_get_result(VWState initial, SNode* final) {
 inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_cost_us, size_t threads, size_t board_k, Stats& stats){
     vector<SNode*> open;
     auto best_g = unordered_map<VWState, int>();
+    best_g.reserve(1 << 20);
     
     std::deque<SNode> arena; // This contains every SNode value, everything else just uses pointers
     std::vector<std::atomic<SNode*>> board(board_k);   // all start as nullptr
 
-    SNode* initial_node = &arena.emplace_back(0, initial);
+    SNode* initial_node = &arena.emplace_back(0, initial, m);
     best_g[initial] = 0;
     
     // cerr << "Pushing initial node " << initial_node.state << "\n";
@@ -94,6 +96,7 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
                     }
                 }
                 stats.empty_scans.fetch_add(worked, std::memory_order_relaxed);
+                if (!worked) __builtin_ia32_pause(); // crazy line
             }
         }));
     }
@@ -110,7 +113,7 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
 
         stats.expanded ++;
 
-        if(current->state.trash_positions.empty()) {
+        if(current->state.is_goal()) {
             // cerr << "Success! Calculating solution";
             for (auto& w : workers) {
                 w.request_stop();
@@ -140,7 +143,7 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
                 best_g[s] = new_g;
                 // cerr << "Pushing child " << s.state << " to open list\n";
                 
-                SNode* s_node = &arena.emplace_back(new_g, s);
+                SNode* s_node = &arena.emplace_back(new_g, s, m);
                 open.push_back(s_node);
                 push_heap(open.begin(), open.end(), NodeCmp{});
 

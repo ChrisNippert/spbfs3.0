@@ -60,7 +60,7 @@ template<> struct std::hash<Position> {
     }
 };
 
-ostream& operator<<(ostream& os, const Position& p) {
+inline ostream& operator<<(ostream& os, const Position& p) {
     return os << "(" << p.r << "," << p.c << ")";
 }
 
@@ -72,51 +72,53 @@ enum Object : char{
 
 struct VWMap {
     int rows, cols;
-    unordered_set<Position> wall_positions;
+    vector<bool>     walls;       // r*cols + c -> is wall
+    vector<Position> trash_pos;       // id -> position
+    vector<int>      trash_id;        // r*cols + c -> id, or -1
 
-public:
+    int idx(const Position& p) const { return p.r * cols + p.c; }
+
     bool is_valid_position(const Position& p) const {
-        return (
-                p.c < cols && p.c >= 0
-            &&  p.r < rows && p.r >= 0
-            &&  !wall_positions.contains(p)
-        );
+        return p.r >= 0 && p.r < rows && p.c >= 0 && p.c < cols && !walls[idx(p)];
     }
 };
 
 class VWState{
 public:
     Position robot_position;
-    unordered_set<Position> trash_positions;
+    uint64_t trash; // bit i set = trash i still there
+
+    bool is_goal() const { return trash == 0; }
 
     /**
      * Returns euclidean distance to nearest trash position
      */
-    int get_nearest_l2_norm() const {
-        if(trash_positions.empty()) return 0;
-        double nearest = numeric_limits<double>::max();
-        for(const auto& t  : trash_positions) {
-            double d = robot_position.euclidean(t);
-            if ( d < nearest )  nearest = d;
+    int get_nearest_l2_norm(const VWMap& map) const {
+        if (trash == 0) return 0;
+        int best = numeric_limits<int>::max();
+        for (uint64_t m = trash; m; m &= m - 1) {
+            const Position& t = map.trash_pos[std::countr_zero(m)];
+            int dr = t.r - robot_position.r, dc = t.c - robot_position.c;
+            best = std::min(best, dr*dr + dc*dc);
         }
-        return (int)nearest;
+        return (int)std::sqrt((double)best);
     }
+
 
     vector<VWState> generate_successors(const VWMap& map) const{
         // move robot up, down, left, right vacuum. Valid states are returned
-        vector<VWState> valid_states;
+        vector<VWState> out;
+        out.reserve(5);
         static constexpr Position DIRS[] = {{-1,0},{1,0},{0,-1},{0,1}};
         for (auto d : DIRS) {
             Position p{robot_position.r + d.r, robot_position.c + d.c};
             if (map.is_valid_position(p))
-                valid_states.push_back(VWState{p, trash_positions});
+                out.push_back(VWState{p, trash});
         }
-        if (trash_positions.contains(robot_position)) {
-            auto new_set = trash_positions;
-            new_set.erase(robot_position);
-            valid_states.push_back(VWState{robot_position, std::move(new_set)});
-        }
-        return valid_states;
+        int id = map.trash_id[map.idx(robot_position)];
+        if (id >= 0 && (trash >> id & 1))
+            out.push_back(VWState{robot_position, trash & ~(1ULL << id)});
+        return out;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const VWState& p);
@@ -127,12 +129,15 @@ public:
 template<> struct std::hash<VWState> {
     size_t operator()(const VWState& s) const {
         size_t h = std::hash<Position>{}(s.robot_position);
-        size_t t = 0;
-        for (const auto& p : s.trash_positions)
-            t += std::hash<Position>{}(p);   // order doesn't matter
-        return h ^ (t * 0x9e3779b97f4a7c15ull);
+        return h ^ (s.trash * 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2));
     }
 };
+
+inline ostream& operator<<(ostream& os, const VWState& s) {
+    os << "VWState(RobotPos: " << s.robot_position << ", Trash ids: [";
+    for (uint64_t m = s.trash; m; m &= m - 1) os << std::countr_zero(m) << " ";
+    return os << "])";
+}
 
 struct Problem {
     VWMap map;
@@ -141,38 +146,30 @@ struct Problem {
 
 inline Problem parse_map(){
     using enum Object;
-    // reads stdin for the file contents being piped in
-    string input_str;
+    string line;
     int rows, cols;
+    if (getline(cin, line)) cols = stoi(line); else exit(1);
+    if (getline(cin, line)) rows = stoi(line); else exit(2);
 
-    if (getline(cin, input_str)) 
-        cols = stoi(input_str);
-    else exit(1);
-    if (getline(cin, input_str)) 
-        rows = stoi(input_str);
-    else exit(2);
-
-    unordered_set<Position> walls;
-    unordered_set<Position> trash;
-    Position robot;
+    VWMap map{rows, cols, vector<bool>(rows * cols, false), {}, vector<int>(rows * cols, -1)};
+    Position robot{0, 0};
+    uint64_t mask = 0;
 
     for (int r = 0; r < rows; ++r) {
-        getline(cin, input_str);
-        int c = 0;
-        for(auto ch : input_str) {
-            if(ch == WALL) 
-                walls.insert(Position{r,c});
-            if(ch == ROBOT) 
-                robot=Position{r,c};
-            if(ch == TRASH) 
-                trash.insert(Position{r,c});
-            c++;
+        getline(cin, line);
+        for (int c = 0; c < (int)line.size() && c < cols; ++c) {
+            Position p{r, c};
+            if (line[c] == WALL)  map.walls[map.idx(p)] = true;
+            if (line[c] == ROBOT) robot = p;
+            if (line[c] == TRASH) {
+                int id = (int)map.trash_pos.size();
+                if (id >= 64) { cerr << "more than 64 trash not supported\n"; exit(3); }
+                map.trash_pos.push_back(p);
+                map.trash_id[map.idx(p)] = id;
+                mask |= 1ULL << id;
+            }
         }
     }
 
-    return Problem{VWMap{rows, cols, walls}, VWState{robot, trash}};
-}
-
-inline std::ostream& operator<<(std::ostream& os, const VWState& p) {
-    return os << "VWState(RobotPos: " << p.robot_position << ", Trash: " << p.trash_positions << ")";
+    return Problem{std::move(map), VWState{robot, mask}};
 }

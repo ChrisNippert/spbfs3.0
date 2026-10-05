@@ -12,12 +12,13 @@ inline Result pastar(const VWMap& m, const VWState& initial, size_t expansion_co
 
     priority_queue<Node*, vector<Node*>, NodePtrCmp> open;
     auto best_g = unordered_map<VWState, int>();
+    best_g.reserve(1 << 20);
 
     atomic<int> best_solution = numeric_limits<int>::max();
     optional<Node*> final_node;
     atomic<size_t> active = 0;
 
-    Node* initial_node = new Node(0, initial);
+    Node* initial_node = new Node(0, initial, m);
     best_g[initial] = 0;
     
     open.push(initial_node);
@@ -52,7 +53,7 @@ inline Result pastar(const VWMap& m, const VWState& initial, size_t expansion_co
 
                     stats.expanded++;
 
-                    if(current->state.trash_positions.empty()) { // success?
+                    if(current->state.is_goal()) { // success?
                         if(current->g < best_solution) {
                             best_solution = current->g;
                             final_node = current;
