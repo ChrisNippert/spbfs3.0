@@ -38,11 +38,11 @@ for a in "${algos[@]}"; do
         # Run 3 iterations for averaging
         for i in 1 2 3; do
           if [[ "$a" == "astar" ]]; then
-            ./bin/spbfs astar "$c" < maps/path_data/100_100_0.4_50_5 >> results/all.csv
+            ./bin/spbfs astar "$c" < maps/100x100_t5 >> results/all.csv
           elif [[ "$a" == "pastar" ]]; then
-            ./bin/spbfs pastar "$c" "$t" < maps/path_data/100_100_0.4_50_5 >> results/all.csv
+            ./bin/spbfs pastar "$c" "$t" < maps/100x100_t5 >> results/all.csv
           elif [[ "$a" == "spastar" ]]; then
-            ./bin/spbfs spastar "$c" "$t" "$k" < maps/path_data/100_100_0.4_50_5 >> results/all.csv
+            ./bin/spbfs spastar "$c" "$t" "$k" < maps/100x100_t5 >> results/all.csv
           fi
         done
 

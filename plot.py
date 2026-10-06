@@ -93,6 +93,50 @@ ax2.axhline(1, color="k", linestyle="--")
 legend_if_any(ax1); legend_if_any(ax2)
 save(fig, "plot.png")
 
+# ---------- 1b. speedup small multiples: one panel per thread count ----------
+ALGO_STYLE = {"pastar":  dict(color="tab:blue",   linestyle="-",  marker="o", label="naive parallel (pastar)"),
+              "spastar": dict(color="tab:orange", linestyle="--", marker="s", label="speculative (spastar)")}
+
+if serial is None:
+    skip("speedup panels", "no astar baseline")
+else:
+    costs  = sorted(avg["cost"].unique())
+    xpos   = {c: i for i, c in enumerate(costs)}            # evenly spaced, categorical x
+    tlist  = sorted(t for t in avg.loc[avg["algo"] != "astar", "threads"].unique() if t > 1)
+
+    fig, axes = plt.subplots(1, len(tlist), figsize=(4.5 * len(tlist), 4.2), sharey=True, squeeze=False)
+    for ax, t in zip(axes[0], tlist):
+        lines = {}
+        for algo in ("pastar", "spastar"):
+            g = avg[(avg["algo"] == algo) & (avg["threads"] == t)].sort_values("cost")
+            if not len(g):
+                continue
+            x = [xpos[c] for c in g["cost"]]
+            s = speedup(g["cost"], g["ms"])
+            ax.plot(x, s, linewidth=2, markersize=7, **ALGO_STYLE[algo])
+            lines[algo] = pd.Series(s, index=x)
+
+        # shade where speculation beats naive
+        if len(lines) == 2:
+            both = pd.concat(lines, axis=1).dropna()
+            ax.fill_between(both.index, both["pastar"], both["spastar"],
+                            where=both["spastar"] > both["pastar"],
+                            color="tab:orange", alpha=0.15, interpolate=True,
+                            label="speculative wins")
+
+        ax.axhline(1, color="0.4", linewidth=1, linestyle=":")
+        ax.text(len(costs) - 1, 1, " serial", va="bottom", ha="right", fontsize=8, color="0.4")
+        ax.set_title(f"{t} threads", fontsize=12)
+        ax.set_xticks(range(len(costs)), [f"{c:g}" for c in costs])
+        ax.set_xlabel("added expansion cost (µs)")
+        ax.grid(axis="y", alpha=0.3)
+        ax.spines[["top", "right"]].set_visible(False)
+
+    axes[0][0].set_ylabel("speedup vs serial A*")
+    axes[0][0].legend(loc="upper left", frameon=False, fontsize=9)
+    fig.suptitle("Speculative vs naive parallel A*, by core count", fontsize=13)
+    save(fig, "speedup_by_threads.png")
+
 # ---------- 2. pop outcomes ----------
 ok, missing = has_cols("hits", "waits", "misses")
 if not len(sp):
