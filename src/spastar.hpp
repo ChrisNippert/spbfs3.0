@@ -10,14 +10,21 @@
 
 enum Spec : uint8_t { IDLE, BUSY, DONE };
 
+struct Succ {
+    VWState s;
+    int h;
+
+    bool operator==(const Succ& other) const = default;
+};
+
 struct alignas(64) SNode{
     int g, h;
     VWState state;
     std::atomic<uint8_t> spec{IDLE};
     SNode* parent;
-    vector<VWState> children; // not storing nodes since atomics can't copy
+    vector<Succ> successors; // not storing nodes since atomics can't copy
 
-    SNode(int g, VWState s, const VWMap& m) : g(g), h(s.get_nearest_l2_norm(m)), state(s) {}
+    SNode(int g, int h, const VWState& s) : g(g), h(h), state(s) {}
 
     bool operator<(const SNode& other) const {
         return f() < other.f();
@@ -27,7 +34,7 @@ struct alignas(64) SNode{
     }
 
     bool operator==(const SNode& other) const {
-        return children == other.children && g == other.g && h == other.h;
+        return successors == other.successors && g == other.g && h == other.h;
     }
 
     int f() const {
@@ -47,7 +54,7 @@ inline void s_generate_successors(const VWMap& m, SNode* n, size_t expansion_cos
     if(expansion_cost_us)
         spin_for(std::chrono::microseconds(expansion_cost_us));
     for(auto& s : successors) {
-        n->children.push_back(s);
+        n->successors.push_back({s, s.get_nearest_l2_norm(m)});
     }
 }
 
@@ -70,14 +77,16 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
     std::deque<SNode> arena; // This contains every SNode value, everything else just uses pointers
     std::vector<std::atomic<SNode*>> board(board_k);   // all start as nullptr
 
-    SNode* initial_node = &arena.emplace_back(0, initial, m);
+    SNode* initial_node = &arena.emplace_back(0, initial.get_nearest_l2_norm(m), initial);
     best_g[initial] = 0;
     
     // cerr << "Pushing initial node " << initial_node.state << "\n";
     open.push_back(initial_node);
     push_heap(open.begin(), open.end(), NodeCmp{});
 
-    board[0] = initial_node;
+    size_t board_idx = 0;
+    board[board_idx] = initial_node;
+    board_idx = ++board_idx%board_k;
     // spawn threads:
 
     vector<jthread> workers;
@@ -134,8 +143,8 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
             while (current->spec.load(std::memory_order_acquire) != DONE) {}
         }
         
-        for(const auto& s : current->children) {
-
+        for(const auto& succ : current->successors) {
+            auto s = succ.s;
             auto bg = best_g.find(s);
             stats.generated++;
             auto new_g = current->g+1;
@@ -143,20 +152,23 @@ inline Result spastar(const VWMap& m, const VWState& initial, size_t expansion_c
                 best_g[s] = new_g;
                 // cerr << "Pushing child " << s.state << " to open list\n";
                 
-                SNode* s_node = &arena.emplace_back(new_g, s, m);
+                SNode* s_node = &arena.emplace_back(new_g, succ.h, s);
                 open.push_back(s_node);
                 push_heap(open.begin(), open.end(), NodeCmp{});
 
                 s_node->parent = current;
+                board[board_idx].store(s_node, std::memory_order_release);
+                board_idx = (board_idx + 1) % board_k;
+
             }
         }
         // Smart update the board for things that are changed
-        size_t n = std::min<size_t>(board_k, open.size());
-        for (size_t i = 0; i < board_k; i++) {
-            SNode* want = i < n ? open[i] : nullptr;
-            if (board[i].load(std::memory_order_relaxed) != want)
-                board[i].store(want, std::memory_order_release);
-        }
+        // size_t n = std::min<size_t>(board_k, open.size());
+        // for (size_t i = 0; i < board_k; i++) {
+        //     SNode* want = i < n ? open[i] : nullptr;
+        //     if (board[i].load(std::memory_order_relaxed) != want)
+        //         board[i].store(want, std::memory_order_release);
+        // }
     }
     return nullopt;
 }

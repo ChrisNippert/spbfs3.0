@@ -1,5 +1,77 @@
-# Run 8 (Moved heuristic calculation inside the speculation of spastar)
+# Run 9 (Went back to circular bench addition)
+I wanted to see if circular bench issues would still be present at these speeds.
 
+Wow ok it gets pretty good in comparison. Possible bug in the old version since this works way better at all areas. Guess we're keeping circular bench. Smart fill might work better at high cost if there was no bug though.
+
+
+path lengths seen: [np.int64(440)]
+Expansions:    min     max
+algo                   
+astar       648160  648160
+pastar      648160  648234
+spastar     648160  648160
+
+base expansion ≈ 0.52 µs
+
+Expansions per second (mean of runs), columns = added expansion cost
+
+                      0µs     1µs     2µs   5µs  10µs  20µs
+config                                                     
+astar              1,927k    612k    385k  176k   93k   48k
+pastar  t=1        1,653k    586k    363k  173k   92k   48k
+pastar  t=2        1,059k    787k    594k  331k  182k   95k
+pastar  t=4          931k    793k    729k  573k  344k  188k
+pastar  t=8          896k    826k    781k  751k  581k  356k
+spastar t=1 k=16   1,766k    599k    374k  175k   94k   48k
+spastar t=1 k=32   1,767k    598k    374k  175k   94k   48k
+spastar t=1 k=64   1,769k    595k    374k  177k   94k   48k
+spastar t=1 k=128  1,778k    596k    369k  177k   94k   48k
+spastar t=2 k=16   2,251k  1,098k    697k  341k  183k   94k
+spastar t=2 k=32   2,258k  1,119k    697k  342k  183k   94k
+spastar t=2 k=64   2,252k  1,133k    703k  342k  184k   94k
+spastar t=2 k=128  2,284k  1,112k    700k  343k  183k   94k
+spastar t=4 k=16   2,069k  1,488k  1,052k  542k  297k  155k
+spastar t=4 k=32   2,088k  1,514k  1,115k  573k  314k  163k
+spastar t=4 k=64   2,091k  1,495k  1,150k  597k  321k  169k
+spastar t=4 k=128  2,212k  1,498k  1,158k  613k  332k  173k
+spastar t=8 k=16   1,792k  1,352k  1,074k  648k  371k  199k
+spastar t=8 k=32   1,903k  1,396k  1,103k  683k  397k  218k
+spastar t=8 k=64   2,006k  1,443k  1,123k  692k  413k  228k
+spastar t=8 k=128  2,070k  1,454k  1,132k  702k  417k  232k
+
+# Run 8 (Moved heuristic calculation inside the speculation of spastar)
+Runs here and on are on ./maps/path_data/100_100_0.4_50_5 for complications
+
+Heuristic offloading: neutral on this map (heuristic is ~ns). Slight t=1 penalty, since main now computes h for rejected children.
+
+Within the speculative design, computing h speculatively is the right default when spare cores exist; its cost is proportional to the duplicate rate. Across designs, speculation wins for cheap nodes and lock-based parallelism wins for expensive ones
+
+base expansion ≈ 0.57 µs
+Expansions per second (mean of runs), columns = added expansion cost
+
+                      0µs     1µs   2µs   5µs  10µs  20µs
+config                                                   
+astar              1,768k    600k  366k  173k   92k   48k
+pastar  t=1        1,544k    570k  351k  168k   91k   48k
+pastar  t=2        1,006k    794k  554k  327k  180k   94k
+pastar  t=4          908k    772k  645k  571k  344k  186k
+pastar  t=8          870k    813k  713k  726k  587k  349k
+spastar t=1 k=16   1,519k    575k  377k  176k   94k   48k
+spastar t=1 k=32   1,407k    586k  377k  174k   94k   48k
+spastar t=1 k=64   1,376k    570k  374k  174k   94k   48k
+spastar t=1 k=128  1,419k    558k  362k  174k   93k   48k
+spastar t=2 k=16   1,711k    941k  647k  315k  169k   87k
+spastar t=2 k=32   1,714k    978k  682k  330k  179k   92k
+spastar t=2 k=64   1,643k  1,021k  692k  336k  182k   95k
+spastar t=2 k=128  1,536k    994k  687k  336k  182k   95k
+spastar t=4 k=16   1,458k  1,040k  862k  462k  259k  137k
+spastar t=4 k=32   1,558k  1,113k  941k  504k  284k  151k
+spastar t=4 k=64   1,532k  1,086k  981k  541k  309k  164k
+spastar t=4 k=128  1,495k  1,162k  974k  570k  329k  176k
+spastar t=8 k=16   1,047k    967k  774k  466k  280k  154k
+spastar t=8 k=32   1,247k  1,080k  860k  533k  321k  178k
+spastar t=8 k=64   1,383k  1,152k  918k  579k  355k  197k
+spastar t=8 k=128  1,402k  1,155k  926k  604k  378k  212k
 
 # Run 7 (Run on ./maps/path_data/100_100_0.4_50_5)
 base expansion ≈ 0.53 µs
